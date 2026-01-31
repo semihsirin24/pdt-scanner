@@ -4,39 +4,56 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDT Scanner</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <style>
 body { font-family: Arial; padding: 10px; }
 #reader { width: 100%; margin-bottom: 20px; }
 .item { border-bottom:1px solid #ccc; padding:8px; font-size:18px; }
 </style>
 </head>
+
 <body>
 
 <h2>PDT Scanner</h2>
 <input type="file" id="excelFile"><br><br>
+
 <div id="reader"></div>
+
 <h3>Son Okutulan</h3>
 <div id="lastScan"></div>
 
 <script>
-// ---- DOM referansları ----
+// DOM elementler
 const excelFile = document.getElementById("excelFile");
 const lastScan = document.getElementById("lastScan");
 
-// ---- Veri ve durum ----
+// Durum
 let targetData = {};
 let lastBarcode = "";
 let lastTime = 0;
 
-// ---- Yardımcı Fonksiyonlar ----
-function pad13(v){ return String(v).replace(/\D/g,"").padStart(13,"0"); }
+// Barkod normalize fonksiyonu
+function normalizeBarcode(v){
+    if(!v) return "";
+    let s = String(v).replace(/\s+/g,"");   // boşlukları kaldır
+    if(/^\d+$/.test(s) && s.length < 13) s = s.padStart(13,"0"); // sayı ise başa sıfır ekle
+    return s;
+}
+
+// Yardımcı fonksiyonlar
 function pick(row, names){ for(let n of names) if(row[n] !== undefined) return row[n]; return ""; }
 function playError(){ navigator.vibrate(200); new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play(); }
 function playSuccess(){ navigator.vibrate(60); }
 
-// ---- Excel Yükleme ----
+// Excel yükleme
 excelFile.addEventListener("change", async function(){
     let file = this.files[0];
     if(!file) return;
@@ -44,9 +61,8 @@ excelFile.addEventListener("change", async function(){
     let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
     targetData = {};
     rows.forEach(r=>{
-        let bc = pick(r, ["Barkod","Barcode","EAN"]);
+        let bc = normalizeBarcode(pick(r, ["Barkod","Barcode","EAN"]));
         if(!bc) return;
-        bc = pad13(bc);
         targetData[bc] = {
             name: pick(r, ["Ürün Adı","Product Name","Description"]) || "-",
             brand: pick(r, ["Marka","Brand"]) || "-",
@@ -58,23 +74,25 @@ excelFile.addEventListener("change", async function(){
     startScanner();
 });
 
-// ---- Scanner ----
+// Scanner başlat
 function startScanner(){
     const scanner = new Html5Qrcode("reader");
     scanner.start(
         { facingMode: "environment" },
         { fps: 12, qrbox: { width: 250, height: 250 } },
         function(decodedText){
-            let bc = pad13(decodedText);
+            let bc = normalizeBarcode(decodedText);
             let now = Date.now();
             if(bc === lastBarcode && now - lastTime < 800) return;
             lastBarcode = bc;
             lastTime = now;
+
             if(!targetData[bc]){
                 playError();
                 lastScan.innerHTML = "<div class='item' style='color:red'>Listede YOK<br>"+bc+"</div>";
                 return;
             }
+
             targetData[bc].collected++;
             playSuccess();
             showLast(bc);
@@ -82,6 +100,7 @@ function startScanner(){
     );
 }
 
+// Son okutulan gösterimi
 function showLast(bc){
     let p = targetData[bc];
     lastScan.innerHTML = "<div class='item'>"+
@@ -91,6 +110,16 @@ function showLast(bc){
         p.collected+" / "+p.target+
         "</div>";
 }
+
+// Service Worker kaydı (PWA)
+if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+        navigator.serviceWorker.register('service-worker.js')
+        .then(reg=>console.log("Service Worker kayıtlı.", reg))
+        .catch(err=>console.log("SW hatası:", err));
+    });
+}
 </script>
+
 </body>
 </html>
