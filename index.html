@@ -4,16 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDT Scanner</title>
-
-<!-- PWA Manifest -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#000000">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
 <style>
 body { font-family: Arial; padding: 10px; }
 #reader { width: 100%; margin-bottom: 20px; }
@@ -23,16 +15,13 @@ body { font-family: Arial; padding: 10px; }
 <body>
 
 <h2>PDT Scanner</h2>
-
 <input type="file" id="excelFile"><br><br>
-
 <div id="reader"></div>
-
 <h3>Son Okutulan</h3>
 <div id="lastScan"></div>
 
 <script>
-// ---- DOM Elementler ----
+// ---- DOM referansları ----
 const excelFile = document.getElementById("excelFile");
 const lastScan = document.getElementById("lastScan");
 
@@ -42,109 +31,66 @@ let lastBarcode = "";
 let lastTime = 0;
 
 // ---- Yardımcı Fonksiyonlar ----
-function pad13(v){
-    return String(v).replace(/\D/g,"").padStart(13,"0");
-}
-
-function pick(row, names){
-    for(let n of names){
-        if(row[n] !== undefined) return row[n];
-    }
-    return "";
-}
-
-function playError(){
-    navigator.vibrate(200);
-    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-}
-
-function playSuccess(){
-    navigator.vibrate(60);
-}
+function pad13(v){ return String(v).replace(/\D/g,"").padStart(13,"0"); }
+function pick(row, names){ for(let n of names) if(row[n] !== undefined) return row[n]; return ""; }
+function playError(){ navigator.vibrate(200); new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play(); }
+function playSuccess(){ navigator.vibrate(60); }
 
 // ---- Excel Yükleme ----
-excelFile.addEventListener("change", loadExcel);
-
-async function loadExcel(){
-    let file = excelFile.files[0];
+excelFile.addEventListener("change", async function(){
+    let file = this.files[0];
     if(!file) return;
-
     let wb = XLSX.read(await file.arrayBuffer());
     let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-
     targetData = {};
-
-    rows.forEach(r => {
+    rows.forEach(r=>{
         let bc = pick(r, ["Barkod","Barcode","EAN"]);
-        let name = pick(r, ["Ürün Adı","Product Name","Description"]);
-        let brand = pick(r, ["Marka","Brand"]);
-        let qty = pick(r, ["Miktar","Qty","Quantity"]);
-
         if(!bc) return;
         bc = pad13(bc);
-
         targetData[bc] = {
-            name: name || "-",
-            brand: brand || "-",
-            target: Number(qty) || 0,
+            name: pick(r, ["Ürün Adı","Product Name","Description"]) || "-",
+            brand: pick(r, ["Marka","Brand"]) || "-",
+            target: Number(pick(r, ["Miktar","Qty","Quantity"])) || 0,
             collected: 0
         };
     });
-
-    alert("Excel yüklendi. SKU sayısı: " + Object.keys(targetData).length);
-
+    alert("Excel yüklendi. SKU sayısı: "+Object.keys(targetData).length);
     startScanner();
-}
+});
 
 // ---- Scanner ----
 function startScanner(){
     const scanner = new Html5Qrcode("reader");
-
     scanner.start(
         { facingMode: "environment" },
         { fps: 12, qrbox: { width: 250, height: 250 } },
-        onScanSuccess
+        function(decodedText){
+            let bc = pad13(decodedText);
+            let now = Date.now();
+            if(bc === lastBarcode && now - lastTime < 800) return;
+            lastBarcode = bc;
+            lastTime = now;
+            if(!targetData[bc]){
+                playError();
+                lastScan.innerHTML = "<div class='item' style='color:red'>Listede YOK<br>"+bc+"</div>";
+                return;
+            }
+            targetData[bc].collected++;
+            playSuccess();
+            showLast(bc);
+        }
     );
-}
-
-function onScanSuccess(decodedText){
-    let bc = pad13(decodedText);
-    let now = Date.now();
-
-    if(bc === lastBarcode && now - lastTime < 800) return;
-    lastBarcode = bc;
-    lastTime = now;
-
-    if(!targetData[bc]){
-        playError();
-        lastScan.innerHTML = "<div class='item' style='color:red'>Listede YOK<br>" + bc + "</div>";
-        return;
-    }
-
-    targetData[bc].collected++;
-    playSuccess();
-    showLast(bc);
 }
 
 function showLast(bc){
     let p = targetData[bc];
-    lastScan.innerHTML = "<div class='item'>" +
-        "<b>" + p.name + "</b><br>" +
-        p.brand + "<br>" +
-        bc + "<br>" +
-        p.collected + " / " + p.target +
+    lastScan.innerHTML = "<div class='item'>"+
+        "<b>"+p.name+"</b><br>"+
+        p.brand+"<br>"+
+        bc+"<br>"+
+        p.collected+" / "+p.target+
         "</div>";
 }
-
-// ---- Service Worker kaydı ----
-if('serviceWorker' in navigator){
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js')
-        .then(reg => console.log("Service Worker kayıtlı.", reg))
-        .catch(err => console.log("SW hatası:", err));
-    });
-}
 </script>
-
 </body>
 </html>
