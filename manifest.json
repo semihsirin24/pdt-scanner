@@ -1,9 +1,8 @@
 {
 "name": "PDT Scanner",
 "short_name": "Scanner",
-"start_url": "scanner.html",
+"start_url": "index.html",
 "display": "standalone",
 "background_color": "#ffffff",
-"theme_color": "#000000",
-"icons": []
+"theme_color": "#000000"
 }
