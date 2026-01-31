@@ -38,23 +38,43 @@ let targetData = {};
 let collected = {};
 
 async function loadExcel(){
+
 let file = excelFile.files[0];
 let wb = XLSX.read(await file.arrayBuffer());
 let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 
-rows.forEach(r=>{
-let bc = String(r["Barkod"]).padStart(13,"0");
-
-targetData[bc]={
-name:r["Ürün Adı"],
-brand:r["Marka"],
-target:Number(r["Miktar"]),
-collected:0
-};
-});
+// Kolonları otomatik yakala
+function pick(row, names){
+ for(let n of names){
+   if(row[n] !== undefined) return row[n];
+ }
+ return "";
 }
 
-excelFile.onchange = loadExcel;
+targetData = {};
+
+rows.forEach(r=>{
+
+let bc = pick(r, ["Barkod","Barcode","EAN"]);
+let name = pick(r, ["Ürün Adı","Product Name","Description"]);
+let brand = pick(r, ["Marka","Brand"]);
+let qty = pick(r, ["Miktar","Qty","Quantity"]);
+
+if(!bc) return;
+
+bc = String(bc).replace(/\D/g,"").padStart(13,"0");
+
+targetData[bc] = {
+  name: name || "-",
+  brand: brand || "-",
+  target: Number(qty)||0,
+  collected: 0
+};
+
+});
+
+alert("Excel yüklendi. SKU sayısı: " + Object.keys(targetData).length);
+}
 
 function playError(){
 navigator.vibrate(200);
@@ -104,3 +124,4 @@ navigator.serviceWorker.register('service-worker.js');
 </script>
 </body>
 </html>
+
