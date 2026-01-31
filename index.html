@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>PDT Scanner</title>
 
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 body { font-family: Arial; padding: 10px; }
-video { width: 100%; border:1px solid black; margin-top:10px; }
+#reader { width:100%; }
 .item { border-bottom:1px solid #ccc; padding:8px; font-size:18px; }
 </style>
 
@@ -22,9 +23,7 @@ video { width: 100%; border:1px solid black; margin-top:10px; }
 
 <input type="file" id="excelFile"><br><br>
 
-<button onclick="startCamera()">Kamerayı Başlat</button>
-
-<video id="video"></video>
+<div id="reader"></div>
 
 <h3>Son Okutulan</h3>
 <div id="lastScan"></div>
@@ -32,14 +31,14 @@ video { width: 100%; border:1px solid black; margin-top:10px; }
 <script>
 
 let targetData = {};
-let lastBarcode = "";
-let lastTime = 0;
+let lastBarcode="";
+let lastTime=0;
 
 function pad13(v){
 return String(v).replace(/\D/g,"").padStart(13,"0");
 }
 
-function pick(row, names){
+function pick(row,names){
 for(let n of names){
  if(row[n] !== undefined) return row[n];
 }
@@ -54,7 +53,7 @@ let file = excelFile.files[0];
 let wb = XLSX.read(await file.arrayBuffer());
 let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 
-targetData = {};
+targetData={};
 
 rows.forEach(r=>{
 
@@ -67,16 +66,18 @@ if(!bc) return;
 
 bc = pad13(bc);
 
-targetData[bc] = {
- name: name || "-",
- brand: brand || "-",
- target: Number(qty)||0,
- collected: 0
+targetData[bc]={
+ name:name||"-",
+ brand:brand||"-",
+ target:Number(qty)||0,
+ collected:0
 };
 
 });
 
-alert("Excel yüklendi. SKU: " + Object.keys(targetData).length);
+alert("Excel yüklendi SKU: "+Object.keys(targetData).length);
+
+startScanner();
 }
 
 function playError(){
@@ -85,39 +86,33 @@ new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
 }
 
 function playSuccess(){
-navigator.vibrate(50);
+navigator.vibrate(60);
 }
 
-async function startCamera(){
+function startScanner(){
 
-const video = document.getElementById("video");
+const scanner = new Html5Qrcode("reader");
 
-const stream = await navigator.mediaDevices.getUserMedia({
- video:{ facingMode:"environment" }
-});
+scanner.start(
+{ facingMode:"environment" },
+{
+ fps:12,
+ qrbox:{ width:280, height:180 }
+},
+onScanSuccess
+);
 
-video.srcObject = stream;
-video.setAttribute("playsinline", true);
-video.play();
+}
 
-const codeReader = new ZXing.BrowserMultiFormatReader();
+function onScanSuccess(decodedText){
 
-setInterval(async ()=>{
+let bc = pad13(decodedText);
 
-try{
-
-let result = await codeReader.decodeFromVideoElement(video);
-
-if(!result) return;
-
-let bc = pad13(result.text);
-
-// Spam engelle
 let now = Date.now();
-if(bc === lastBarcode && now-lastTime < 800) return;
+if(bc===lastBarcode && now-lastTime<800) return;
 
-lastBarcode = bc;
-lastTime = now;
+lastBarcode=bc;
+lastTime=now;
 
 if(!targetData[bc]){
 playError();
@@ -125,13 +120,9 @@ return;
 }
 
 targetData[bc].collected++;
-
 playSuccess();
 showLast(bc);
 
-}catch(e){}
-
-},400);
 }
 
 function showLast(bc){
