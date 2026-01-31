@@ -1,24 +1,18 @@
-<script>
-alert("TEST VERSIYON");
-</script>
-
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PDT Scanner</title>
 
-<link rel="manifest" href="manifest.json">
-alert("Yeni sürüm yüklendi");
+<title>PDT Scanner</title>
 
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 body { font-family: Arial; padding: 10px; }
-video { width: 100%; border:1px solid black; }
-.item { border-bottom:1px solid #ccc; padding:5px; }
+video { width: 100%; border:1px solid black; margin-top:10px; }
+.item { border-bottom:1px solid #ccc; padding:8px; font-size:18px; }
 </style>
 
 </head>
@@ -27,7 +21,6 @@ video { width: 100%; border:1px solid black; }
 
 <h2>PDT Scanner</h2>
 
-Excel Yükle:
 <input type="file" id="excelFile"><br><br>
 
 <button onclick="startCamera()">Kamerayı Başlat</button>
@@ -40,21 +33,32 @@ Excel Yükle:
 <script>
 
 let targetData = {};
-let collected = {};
+
+function pad13(v){
+return String(v).replace(/\D/g,"").padStart(13,"0");
+}
+
+// Excel Kolon Otomatik Tanıma
+function pick(row, names){
+for(let n of names){
+ if(row[n] !== undefined) return row[n];
+}
+return "";
+}
+
+excelFile.addEventListener("change", loadExcel);
 
 async function loadExcel(){
 
 let file = excelFile.files[0];
+
+if(!file){
+alert("Excel seçilmedi");
+return;
+}
+
 let wb = XLSX.read(await file.arrayBuffer());
 let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-
-// Kolonları otomatik yakala
-function pick(row, names){
- for(let n of names){
-   if(row[n] !== undefined) return row[n];
- }
- return "";
-}
 
 targetData = {};
 
@@ -67,13 +71,13 @@ let qty = pick(r, ["Miktar","Qty","Quantity"]);
 
 if(!bc) return;
 
-bc = String(bc).replace(/\D/g,"").padStart(13,"0");
+bc = pad13(bc);
 
 targetData[bc] = {
-  name: name || "-",
-  brand: brand || "-",
-  target: Number(qty)||0,
-  collected: 0
+ name: name || "-",
+ brand: brand || "-",
+ target: Number(qty)||0,
+ collected: 0
 };
 
 });
@@ -94,7 +98,7 @@ codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
 
 if(result){
 
-let bc = result.text.padStart(13,"0");
+let bc = pad13(result.text);
 
 if(!targetData[bc]){
 playError();
@@ -104,6 +108,7 @@ return;
 targetData[bc].collected++;
 
 showLast(bc);
+
 }
 
 });
@@ -122,12 +127,6 @@ p.collected+" / "+p.target +
 "</div>";
 }
 
-
-
 </script>
 </body>
 </html>
-
-
-
-
