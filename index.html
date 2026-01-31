@@ -115,15 +115,25 @@ lastBarcode=bc;
 lastTime=now;
 
 if(!targetData[bc]){
-playError();
+
+navigator.vibrate(200);
+
+lastScan.innerHTML =
+"<div class='item' style='color:red'>" +
+"Listede YOK<br>" +
+bc +
+"</div>";
+
 return;
 }
 
 targetData[bc].collected++;
-playSuccess();
-showLast(bc);
 
+navigator.vibrate(60);
+
+showLast(bc);
 }
+
 
 function showLast(bc){
 
@@ -141,3 +151,4 @@ p.collected+" / "+p.target +
 </script>
 </body>
 </html>
+
