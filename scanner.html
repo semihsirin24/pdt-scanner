@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDT Scanner</title>
+
+<link rel="manifest" href="manifest.json">
+
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+body { font-family: Arial; padding: 10px; }
+video { width: 100%; border:1px solid black; }
+.item { border-bottom:1px solid #ccc; padding:5px; }
+</style>
+
+</head>
+
+<body>
+
+<h2>PDT Scanner</h2>
+
+Excel Yükle:
+<input type="file" id="excelFile"><br><br>
+
+<button onclick="startCamera()">Kamerayı Başlat</button>
+
+<video id="video"></video>
+
+<h3>Son Okutulan</h3>
+<div id="lastScan"></div>
+
+<script>
+
+let targetData = {};
+let collected = {};
+
+async function loadExcel(){
+let file = excelFile.files[0];
+let wb = XLSX.read(await file.arrayBuffer());
+let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+rows.forEach(r=>{
+let bc = String(r["Barkod"]).padStart(13,"0");
+
+targetData[bc]={
+name:r["Ürün Adı"],
+brand:r["Marka"],
+target:Number(r["Miktar"]),
+collected:0
+};
+});
+}
+
+excelFile.onchange = loadExcel;
+
+function playError(){
+navigator.vibrate(200);
+new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
+}
+
+function startCamera(){
+
+const codeReader = new ZXing.BrowserMultiFormatReader();
+
+codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+
+if(result){
+
+let bc = result.text.padStart(13,"0");
+
+if(!targetData[bc]){
+playError();
+return;
+}
+
+targetData[bc].collected++;
+
+showLast(bc);
+}
+
+});
+}
+
+function showLast(bc){
+
+let p = targetData[bc];
+
+lastScan.innerHTML =
+"<div class='item'>" +
+"<b>"+p.name+"</b><br>" +
+p.brand+"<br>" +
+bc+"<br>" +
+p.collected+" / "+p.target +
+"</div>";
+}
+
+if ('serviceWorker' in navigator) {
+navigator.serviceWorker.register('service-worker.js');
+}
+
+</script>
+</body>
+</html>
