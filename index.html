@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDT Scanner</title>
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -14,7 +20,6 @@ body { font-family: Arial; padding: 10px; }
 .item { border-bottom:1px solid #ccc; padding:8px; font-size:18px; }
 </style>
 </head>
-
 <body>
 
 <h2>PDT Scanner</h2>
@@ -27,11 +32,16 @@ body { font-family: Arial; padding: 10px; }
 <div id="lastScan"></div>
 
 <script>
+// ---- DOM Elementler ----
+const excelFile = document.getElementById("excelFile");
+const lastScan = document.getElementById("lastScan");
 
+// ---- Veri ve durum ----
 let targetData = {};
 let lastBarcode = "";
 let lastTime = 0;
 
+// ---- Yardımcı Fonksiyonlar ----
 function pad13(v){
     return String(v).replace(/\D/g,"").padStart(13,"0");
 }
@@ -43,10 +53,20 @@ function pick(row, names){
     return "";
 }
 
-document.getElementById("excelFile").addEventListener("change", loadExcel);
+function playError(){
+    navigator.vibrate(200);
+    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
+}
+
+function playSuccess(){
+    navigator.vibrate(60);
+}
+
+// ---- Excel Yükleme ----
+excelFile.addEventListener("change", loadExcel);
 
 async function loadExcel(){
-    let file = document.getElementById("excelFile").files[0];
+    let file = excelFile.files[0];
     if(!file) return;
 
     let wb = XLSX.read(await file.arrayBuffer());
@@ -76,21 +96,13 @@ async function loadExcel(){
     startScanner();
 }
 
-function playError(){
-    navigator.vibrate(200);
-    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-}
-
-function playSuccess(){
-    navigator.vibrate(60);
-}
-
+// ---- Scanner ----
 function startScanner(){
     const scanner = new Html5Qrcode("reader");
 
     scanner.start(
         { facingMode: "environment" },
-        { fps: 12, qrbox: { width: 280, height: 180 } },
+        { fps: 12, qrbox: { width: 250, height: 250 } },
         onScanSuccess
     );
 }
@@ -105,8 +117,7 @@ function onScanSuccess(decodedText){
 
     if(!targetData[bc]){
         playError();
-        document.getElementById("lastScan").innerHTML =
-            "<div class='item' style='color:red'>Listede YOK<br>" + bc + "</div>";
+        lastScan.innerHTML = "<div class='item' style='color:red'>Listede YOK<br>" + bc + "</div>";
         return;
     }
 
@@ -117,8 +128,7 @@ function onScanSuccess(decodedText){
 
 function showLast(bc){
     let p = targetData[bc];
-    document.getElementById("lastScan").innerHTML =
-        "<div class='item'>" +
+    lastScan.innerHTML = "<div class='item'>" +
         "<b>" + p.name + "</b><br>" +
         p.brand + "<br>" +
         bc + "<br>" +
@@ -126,6 +136,15 @@ function showLast(bc){
         "</div>";
 }
 
+// ---- Service Worker kaydı ----
+if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log("Service Worker kayıtlı.", reg))
+        .catch(err => console.log("SW hatası:", err));
+    });
+}
 </script>
+
 </body>
 </html>
