@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>PDT Scanner</title>
 
 <script src="https://unpkg.com/@zxing/library@latest"></script>
@@ -33,12 +32,13 @@ video { width: 100%; border:1px solid black; margin-top:10px; }
 <script>
 
 let targetData = {};
+let lastBarcode = "";
+let lastTime = 0;
 
 function pad13(v){
 return String(v).replace(/\D/g,"").padStart(13,"0");
 }
 
-// Excel Kolon Otomatik Tanıma
 function pick(row, names){
 for(let n of names){
  if(row[n] !== undefined) return row[n];
@@ -51,12 +51,6 @@ excelFile.addEventListener("change", loadExcel);
 async function loadExcel(){
 
 let file = excelFile.files[0];
-
-if(!file){
-alert("Excel seçilmedi");
-return;
-}
-
 let wb = XLSX.read(await file.arrayBuffer());
 let rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 
@@ -82,7 +76,7 @@ targetData[bc] = {
 
 });
 
-alert("Excel yüklendi. SKU sayısı: " + Object.keys(targetData).length);
+alert("Excel yüklendi. SKU: " + Object.keys(targetData).length);
 }
 
 function playError(){
@@ -90,15 +84,40 @@ navigator.vibrate(200);
 new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
 }
 
-function startCamera(){
+function playSuccess(){
+navigator.vibrate(50);
+}
+
+async function startCamera(){
+
+const video = document.getElementById("video");
+
+const stream = await navigator.mediaDevices.getUserMedia({
+ video:{ facingMode:"environment" }
+});
+
+video.srcObject = stream;
+video.setAttribute("playsinline", true);
+video.play();
 
 const codeReader = new ZXing.BrowserMultiFormatReader();
 
-codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+setInterval(async ()=>{
 
-if(result){
+try{
+
+let result = await codeReader.decodeFromVideoElement(video);
+
+if(!result) return;
 
 let bc = pad13(result.text);
+
+// Spam engelle
+let now = Date.now();
+if(bc === lastBarcode && now-lastTime < 800) return;
+
+lastBarcode = bc;
+lastTime = now;
 
 if(!targetData[bc]){
 playError();
@@ -107,11 +126,12 @@ return;
 
 targetData[bc].collected++;
 
+playSuccess();
 showLast(bc);
 
-}
+}catch(e){}
 
-});
+},400);
 }
 
 function showLast(bc){
